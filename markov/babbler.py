@@ -1,3 +1,4 @@
+# James
 import random
 import glob
 import sys
@@ -90,10 +91,21 @@ class Babbler:
         after removing trailing spaces and making it lower case.
         We are assuming input data has already been pre-processed so that each sentence is on a separate line.
         """
-
         print("Reading from you file...")
-        for line in [line.rstrip().lower() for line in open(filename, errors='ignore').readlines()]:
-            self.add_sentence(line)
+        try:
+            # First try UTF-16, which seems to match the file's encoding based on 0xff
+            with open(filename, 'r', encoding='utf-16') as f:
+                for line in f:
+                    cleaned_line = line.rstrip().replace('\x00', '')
+                    if cleaned_line:
+                        self.add_sentence(cleaned_line.lower())
+        except UnicodeDecodeError:
+            # If UTF-16 fails, try UTF-8 with BOM handling
+            with open(filename, 'r', encoding='utf-8-sig') as f:
+                for line in f:
+                    cleaned_line = line.rstrip().replace('\x00', '')
+                    if cleaned_line:
+                        self.add_sentence(cleaned_line.lower())
         print("Done reading from your file.")
 
         print("\n---------resulting graph: --------")
@@ -111,8 +123,28 @@ class Babbler:
         and that any n-grams that stops a sentence should be followed by the
         special symbol 'EOL' in the state transition table. 'EOL' is short for 'end of line'; since it is capitalized and all our input texts are lower-case, it will be unambiguous.
         """
-
-        pass #The pass statement is used as a placeholder for future code. When the pass statement is executed, nothing happens, but you avoid getting an error when empty code is not allowed. Empty code is not allowed in loops, function definitions, class definitions, or in if statements.
+        words = sentence.split()  # Split on whitespace, already lowercase from add_file
+        if len(words) < self.n:  # Skip if sentence is shorter than n-gram size
+            return
+        
+        # Add first n-gram as starter
+        starter = " ".join(words[:self.n])
+        self.starters.append(starter)
+        
+        # Process n-grams and their successors
+        for i in range(len(words) - self.n):
+            ngram = " ".join(words[i:i + self.n])
+            next_word = words[i + self.n]
+            if ngram not in self.brainGraph:
+                self.brainGraph[ngram] = []
+            self.brainGraph[ngram].append(next_word)
+        
+        # Add last n-gram as stopper and EOL
+        last_ngram = " ".join(words[-self.n:])
+        self.stoppers.append(last_ngram)
+        if last_ngram not in self.brainGraph:
+            self.brainGraph[last_ngram] = []
+        self.brainGraph[last_ngram].append('EOL')
 
 
     def get_starters(self):
@@ -121,7 +153,7 @@ class Babbler:
         The resulting list may contain duplicates, because one n-gram may start
         multiple sentences. Probably a one-line method.
         """
-        pass
+        return self.starters
     
 
     def get_stoppers(self):
@@ -130,7 +162,7 @@ class Babbler:
         The resulting value may contain duplicates, because one n-gram may stop
         multiple sentences. Probably a one-line method.
         """
-        pass
+        return self.stoppers
 
 
     def get_successors(self, ngram):
@@ -145,8 +177,7 @@ class Babbler:
         If n=3, then the n-gram 'the dog dances' is followed by 'quickly' one time, and 'with' two times.
         If the given state never occurs, return an empty list.
         """
-
-        pass
+        return self.brainGraph.get(ngram, [])
     
 
     def get_all_ngrams(self):
@@ -154,8 +185,7 @@ class Babbler:
         Return all the possible n-grams (sequences of n words), that we have seen across all sentences.
         Probably a one-line method.
         """
-
-        pass
+        return list(self.brainGraph.keys())
 
     
     def has_successor(self, ngram):
@@ -165,8 +195,7 @@ class Babbler:
         because ngrams with no successor words must not have occurred in the training sentences.
         Probably a one-line method.
         """
-
-        pass
+        return ngram in self.brainGraph and len(self.brainGraph[ngram]) > 0
     
     
     def get_random_successor(self, ngram):
@@ -180,8 +209,10 @@ class Babbler:
         and we call get_random_next_word() for the state 'the dog dances',
         we should get 'quickly' about 1/3 of the time, and 'with' 2/3 of the time.
         """
-
-        pass
+        successors = self.get_successors(ngram)
+        if not successors:
+            return None
+        return random.choice(successors)
     
 
     def babble(self):
@@ -198,8 +229,22 @@ class Babbler:
             Our example state is now: 'b c d' 
         6: Repeat from step 2.
         """
-
-        pass
+        if not self.starters:
+            return ""
+        
+        current_ngram = random.choice(self.starters)
+        sentence = current_ngram
+        
+        while True:
+            next_word = self.get_random_successor(current_ngram)
+            if next_word == 'EOL' or next_word is None:
+                break
+                
+            sentence += " " + next_word
+            current_words = current_ngram.split()
+            current_ngram = " ".join(current_words[1:] + [next_word])
+            
+        return sentence
             
 
 # nothing to change here; read, understand, move along
